@@ -7,15 +7,27 @@
         <div class="col-lg-8 pt-5">
             <!-- ###### Main Content ###### -->
             <h2 class="pt-4 pb-2 mb-4 border-bottom">Camera Feed</h2>
-            <img class="img-fluid" id="cameraImage" alt="Camera Feed">
+            <div class="camera-container position-relative">
+                <img class="img-fluid" id="cameraImage" alt="Camera Feed">
+                <!-- FPS counter will be inserted here by JavaScript -->
+            </div>
             <div class="pt-3 row">
                 <div class="d-grid gap-2 col-4 mx-auto">
                     <button type="button" class="btn btn-primary btn-success btn-lg" id="captureButton" onclick="capturePhoto()">Capture Image</button>
+                    <div class="btn-group" role="group" aria-label="Recording controls">
+                        <button type="button" class="btn btn-danger btn-lg" id="startRecordingButton" onclick="startRecording()">Start Recording</button>
+                        <button type="button" class="btn btn-warning btn-lg" id="stopRecordingButton" onclick="stopRecording()" disabled>Stop Recording</button>
+                    </div>
+                    <div id="recordingStatus" class="text-center mt-2" style="display: none;">
+                        <span class="badge bg-danger">Recording...</span>
+                        <span id="recordingTime">00:00</span>
+                    </div>
                     <!--<button type="button" class="btn btn-primary btn-info btn-lg" id="starttimelapseButton" onclick="start_timelapse()">Start Timelapse</button>-->
                     <!--<button type="button" class="btn btn-primary btn-danger btn-lg" id="stoptimelapseButton" onclick="stop_timelapse()">Stop Timelapse</button>-->
                 </div>
                 <div class="col-8">
                     <div id="captureAlert" class="alert" role="alert" style="display: none;"></div>
+                    <div id="recordingAlert" class="alert" role="alert" style="display: none;"></div>
                 </div>
             </div>
         </div>
@@ -256,7 +268,7 @@
                             <div class="collapse p-2" id="AeEnable_info">
                                 <div class="card card-body">
                                         <p class="mb-0">Allow the Auto Exposure Compensation and Auto Gain Compensation (AEC/AGC) algorithm to be turned on and off.</p>
-                                        <p class="mb-0">When if is off, there will be no automatic updates to the camera’s gain or exposure settings.</p>
+                                        <p class="mb-0">When if is off, there will be no automatic updates to the camera's gain or exposure settings.</p>
                                 </div>
                               </div>
                             <div class="form-check form-switch">
@@ -685,6 +697,40 @@
                                             </div>
                                             {% endfor %}
                                         <hr></hr>
+                                            
+                                            <!-- Frame Rate -->
+                                            <div class="d-flex w-100 align-items-center justify-content-between">
+                                                <strong class="mb-1"><label for="frameRate" class="form-label mb-0" id="currentFrameRate">Frame Rate (FPS):</label></strong>
+                                                <a data-bs-toggle="collapse" href="#frameRate_info" role="button">
+                                                <i class="bi bi-info-circle"></i></a>
+                                            </div>
+                                            <div class="collapse p-2" id="frameRate_info">
+                                                <div class="card card-body">
+                                                    <p class="mb-0">Set the frame rate for both live streaming and video recording. Higher frame rates provide smoother video but may require more processing power and bandwidth.</p>
+                                                    <p class="mb-0">Note: The camera will restart when changing the frame rate.</p>
+                                                    <div class="alert alert-warning" role="alert">
+                                                        Not all cameras support all frame rates. If you experience issues, try a lower frame rate.
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="radio" name="FrameRate" id="FrameRate30" onclick="adjustFrameRate(30)" {% if frame_rate == 30 %}checked{% endif %}>
+                                                <label class="form-check-label" for="FrameRate30">30 FPS</label>
+                                            </div>
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="radio" name="FrameRate" id="FrameRate60" onclick="adjustFrameRate(60)" {% if frame_rate == 60 %}checked{% endif %}>
+                                                <label class="form-check-label" for="FrameRate60">60 FPS</label>
+                                            </div>
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="radio" name="FrameRate" id="FrameRate90" onclick="adjustFrameRate(90)" {% if frame_rate == 90 %}checked{% endif %}>
+                                                <label class="form-check-label" for="FrameRate90">90 FPS</label>
+                                            </div>
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="radio" name="FrameRate" id="FrameRate120" onclick="adjustFrameRate(120)" {% if frame_rate == 120 %}checked{% endif %}>
+                                                <label class="form-check-label" for="FrameRate120">120 FPS</label>
+                                            </div>
+                                        <hr></hr>
+                                            
                                             <!-- Make Raw -->
                                             <div class="form-check form-switch">
                                                 <input class="form-check-input" type="checkbox" role="switch" id="makeRaw" onchange="adjustSwitchSetting('makeRaw')">
@@ -1007,6 +1053,19 @@ function updateUI(settings) {
                 const input = document.getElementById(key);
                 if (input) {
                     input.value = settings[key];
+                }
+            } else if (key === 'FrameRate') {
+                // Handle frame rate radio buttons
+                const frameRateRadio = document.getElementById(`FrameRate${settings[key]}`);
+                if (frameRateRadio) {
+                    frameRateRadio.checked = true;
+                }
+            } else if (key === 'capture-settings' && settings[key].hasOwnProperty('FrameRate')) {
+                // Handle frame rate in capture-settings
+                const frameRate = settings[key]['FrameRate'];
+                const frameRateRadio = document.getElementById(`FrameRate${frameRate}`);
+                if (frameRateRadio) {
+                    frameRateRadio.checked = true;
                 }
             } else if (key === 'ScalerCrop') {
                 console.log(settings[key]);
@@ -1639,6 +1698,45 @@ function adjustflip(mode) {
         .catch(error => {
             console.error('Error updating server settings:', error);
             // Handle the error if needed
+        });
+}
+
+function adjustFrameRate(frameRate) {
+    // Update UI with the new value
+    updateUI({ 'FrameRate': frameRate });
+    
+    // Show a loading message
+    const alertElement = document.getElementById('captureAlert');
+    alertElement.className = 'alert alert-info';
+    alertElement.textContent = `Changing frame rate to ${frameRate} FPS. Please wait...`;
+    alertElement.style.display = 'block';
+    
+    // Update server settings and wait for it to complete
+    updateRestartSettings({ 'capture-settings': { 'FrameRate': frameRate } })
+        .then(() => {
+            // Refresh the camera feed after updating server settings
+            refreshCameraFeed();
+            
+            // Show success message
+            alertElement.className = 'alert alert-success';
+            alertElement.textContent = `Frame rate changed to ${frameRate} FPS successfully.`;
+            
+            // Hide the alert after a few seconds
+            setTimeout(() => {
+                alertElement.style.display = 'none';
+            }, 5000);
+        })
+        .catch(error => {
+            console.error('Error updating frame rate:', error);
+            
+            // Show error message
+            alertElement.className = 'alert alert-danger';
+            alertElement.textContent = `Error changing frame rate: ${error.message}`;
+            
+            // Hide the alert after a few seconds
+            setTimeout(() => {
+                alertElement.style.display = 'none';
+            }, 5000);
         });
 }
 

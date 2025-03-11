@@ -1,0 +1,212 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container-xxl">
+    <div class="row">
+        <div class="col-lg-8 pt-5">
+            <h2 class="pt-4 pb-2 mb-4 border-bottom">Libcamera-vid Preview</h2>
+            <div class="camera-container position-relative">
+                <img class="img-fluid" id="cameraImage" alt="Camera Feed">
+                <div id="fpsCounter" class="position-absolute top-0 end-0 bg-dark text-white p-2 m-2 rounded">FPS: --</div>
+            </div>
+        </div>
+        <div class="col-lg-4 pt-5">
+            <h2 class="pt-4 pb-2 mb-4 border-bottom">Command Settings</h2>
+            <form id="cameraForm">
+                <div class="mb-3">
+                    <label for="width" class="form-label">Width</label>
+                    <input type="number" class="form-control" id="width" name="width" value="1456">
+                </div>
+                <div class="mb-3">
+                    <label for="height" class="form-label">Height</label>
+                    <input type="number" class="form-control" id="height" name="height" value="1088">
+                </div>
+                <div class="mb-3">
+                    <label for="framerate" class="form-label">Framerate</label>
+                    <input type="number" class="form-control" id="framerate" name="framerate" value="60">
+                </div>
+                <div class="mb-3">
+                    <label for="codec" class="form-label">Codec</label>
+                    <select class="form-select" id="codec" name="codec">
+                        <option value="mjpeg" selected>MJPEG</option>
+                        <option value="h264">H264</option>
+                        <option value="yuv420">YUV420</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label for="quality" class="form-label">Quality (0-100)</label>
+                    <input type="range" class="form-range" id="quality" name="quality" min="0" max="100" value="90">
+                    <div class="text-center" id="qualityValue">90</div>
+                </div>
+                <div class="mb-3">
+                    <label for="camera" class="form-label">Camera</label>
+                    <input type="number" class="form-control" id="camera" name="camera" value="0" min="0">
+                </div>
+                <div class="mb-3 form-check">
+                    <input type="checkbox" class="form-check-input" id="hflip" name="hflip">
+                    <label class="form-check-label" for="hflip">Horizontal Flip</label>
+                </div>
+                <div class="mb-3 form-check">
+                    <input type="checkbox" class="form-check-input" id="vflip" name="vflip">
+                    <label class="form-check-label" for="vflip">Vertical Flip</label>
+                </div>
+                <div class="mb-3">
+                    <label for="customCommand" class="form-label">Custom Command</label>
+                    <textarea class="form-control" id="customCommand" rows="3" placeholder="Additional command-line arguments"></textarea>
+                </div>
+                <button type="button" class="btn btn-primary" id="applyButton">Apply Settings</button>
+                <button type="button" class="btn btn-danger" id="stopButton">Stop Stream</button>
+            </form>
+        </div>
+    </div>
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5>Current Command</h5>
+                </div>
+                <div class="card-body">
+                    <pre id="currentCommand">libcamera-vid --width 1456 --height 1088 --framerate 60 --codec mjpeg --quality 90 --inline --timeout 0 --nopreview --output -</pre>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const cameraImage = document.getElementById('cameraImage');
+        const fpsCounter = document.getElementById('fpsCounter');
+        const qualitySlider = document.getElementById('quality');
+        const qualityValue = document.getElementById('qualityValue');
+        const applyButton = document.getElementById('applyButton');
+        const stopButton = document.getElementById('stopButton');
+        const currentCommand = document.getElementById('currentCommand');
+        const customCommand = document.getElementById('customCommand');
+        
+        // Update quality value display
+        qualitySlider.addEventListener('input', function() {
+            qualityValue.textContent = this.value;
+        });
+        
+        // Set the source of the camera image
+        cameraImage.src = "{{ url_for('libcamera_feed') }}";
+        
+        // Update FPS counter
+        let frameCount = 0;
+        let lastTime = performance.now();
+        
+        function updateFPS() {
+            const now = performance.now();
+            const elapsed = now - lastTime;
+            
+            if (elapsed >= 1000) {
+                const fps = Math.round((frameCount * 1000) / elapsed);
+                fpsCounter.textContent = `FPS: ${fps}`;
+                frameCount = 0;
+                lastTime = now;
+            }
+        }
+        
+        // Count frames when they load
+        cameraImage.onload = function() {
+            frameCount++;
+            updateFPS();
+        };
+        
+        // Start FPS counter update loop
+        setInterval(updateFPS, 1000);
+        
+        // Apply button click handler
+        applyButton.addEventListener('click', function() {
+            // Build the command
+            let cmd = "libcamera-vid";
+            cmd += ` --width ${document.getElementById('width').value}`;
+            cmd += ` --height ${document.getElementById('height').value}`;
+            cmd += ` --framerate ${document.getElementById('framerate').value}`;
+            cmd += ` --codec ${document.getElementById('codec').value}`;
+            
+            // Only add quality for MJPEG
+            if (document.getElementById('codec').value === 'mjpeg') {
+                cmd += ` --quality ${document.getElementById('quality').value}`;
+                cmd += ` --inline`;
+            }
+            
+            // Add camera if not 0
+            const camera = document.getElementById('camera').value;
+            if (camera !== '0') {
+                cmd += ` --camera ${camera}`;
+            }
+            
+            // Add flip options
+            if (document.getElementById('hflip').checked) {
+                cmd += ` --hflip`;
+            }
+            if (document.getElementById('vflip').checked) {
+                cmd += ` --vflip`;
+            }
+            
+            // Add fixed options
+            cmd += ` --timeout 0 --nopreview`;
+            
+            // Add custom command
+            if (customCommand.value.trim()) {
+                cmd += ` ${customCommand.value.trim()}`;
+            }
+            
+            // Add output
+            cmd += ` --output -`;
+            
+            // Update current command display
+            currentCommand.textContent = cmd;
+            
+            // Send the command to the server
+            fetch('{{ url_for("libcamera_command") }}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ command: cmd })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    alert(`Error: ${data.error}`);
+                } else {
+                    // Reload the image with a cache-busting parameter
+                    cameraImage.src = `{{ url_for('libcamera_feed') }}?t=${new Date().getTime()}`;
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert(`Error: ${error}`);
+            });
+        });
+        
+        // Stop button click handler
+        stopButton.addEventListener('click', function() {
+            fetch('{{ url_for("libcamera_command") }}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ command: 'libcamera-vid --timeout 1 --nopreview --output -' })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    alert(`Error: ${data.error}`);
+                } else {
+                    // Clear the image
+                    cameraImage.src = '';
+                    fpsCounter.textContent = 'FPS: --';
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert(`Error: ${error}`);
+            });
+        });
+    });
+</script>
+{% endblock %} 

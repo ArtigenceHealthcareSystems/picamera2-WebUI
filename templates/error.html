@@ -1,0 +1,29 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container-xxl">
+    <div class="row">
+        <div class="pt-5">
+            <!-- ###### Main Content ###### -->
+            <h2 class="pt-4 pb-2 mb-4 border-bottom text-danger">Error</h2>
+            
+            <div class="alert alert-danger" role="alert">
+                <h4 class="alert-heading">An error occurred!</h4>
+                <p>{{ error }}</p>
+                <hr>
+                <p class="mb-0">Please try again or return to the <a href="{{ url_for('home') }}" class="alert-link">home page</a>.</p>
+            </div>
+            
+            <!-- Technical Details (for debugging) -->
+            <div class="card mt-4">
+                <div class="card-header">
+                    Technical Details
+                </div>
+                <div class="card-body">
+                    <pre class="text-muted">{{ error }}</pre>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 

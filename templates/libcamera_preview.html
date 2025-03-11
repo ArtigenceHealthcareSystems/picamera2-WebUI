@@ -1,0 +1,62 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container-xxl">
+    <div class="row">
+        <div class="col-lg-12 pt-5">
+            <h2 class="pt-4 pb-2 mb-4 border-bottom">Libcamera-vid Preview</h2>
+            <div class="camera-container position-relative">
+                <img class="img-fluid" id="cameraImage" alt="Camera Feed">
+                <div id="fpsCounter" class="position-absolute top-0 end-0 bg-dark text-white p-2 m-2 rounded">FPS: --</div>
+            </div>
+            <div class="pt-3 row">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5>Camera Command</h5>
+                        </div>
+                        <div class="card-body">
+                            <pre id="cameraCommand">{{ command }}</pre>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const cameraImage = document.getElementById('cameraImage');
+        const fpsCounter = document.getElementById('fpsCounter');
+        
+        // Set the source of the camera image
+        cameraImage.src = "{{ url_for('libcamera_feed') }}";
+        
+        // Update FPS counter
+        let frameCount = 0;
+        let lastTime = performance.now();
+        
+        function updateFPS() {
+            const now = performance.now();
+            const elapsed = now - lastTime;
+            
+            if (elapsed >= 1000) {
+                const fps = Math.round((frameCount * 1000) / elapsed);
+                fpsCounter.textContent = `FPS: ${fps}`;
+                frameCount = 0;
+                lastTime = now;
+            }
+        }
+        
+        // Count frames when they load
+        cameraImage.onload = function() {
+            frameCount++;
+            updateFPS();
+        };
+        
+        // Start FPS counter update loop
+        setInterval(updateFPS, 1000);
+    });
+</script>
+{% endblock %} 

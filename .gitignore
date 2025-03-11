@@ -2,3 +2,7 @@ static/gallery/*
 .venv/*
 static/camera_config/*
 camera-last-config.json
+frontend/node_modules/*
+*.mp4
+*.h264
+picam2_video.mjpeg
